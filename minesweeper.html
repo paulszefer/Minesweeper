@@ -1,0 +1,228 @@
+<canvas id='canvas'/>
+<script>
+let tickCount = 60;
+
+let mineCount = 50;
+let boardSize = 20;
+
+let boardX = boardSize;
+let boardY = boardSize;
+
+let cellSize = 40;
+
+let borderColor = "#000000";
+
+//let cellFillColor = "#9955FF";
+let cellFillColor = "#BBFFBB";
+let cellBorderColor = borderColor;
+//let clearCellFillColor = "#BBFFBB";
+let clearCellFillColor = "#99BBFF";
+let clearCellBorderColor = borderColor;
+let warningCellFillColor = "#EEEE99";
+let warningCellBorderColor = borderColor;
+
+let canvas = document.getElementById("canvas");
+canvas.width = boardX * cellSize;
+canvas.height = boardY * cellSize;
+
+let context = canvas.getContext("2d");
+context.textAlign = "center";
+context.font = "16px Arial";
+
+let board;
+
+function init()
+{
+  initBoard();
+  initMines();
+  initMetaInfo();
+}
+
+function initBoard()
+{
+  board = [];
+  for (let x = 0; x < boardX; ++x)
+  {
+    board[x] = [];
+    for (let y = 0; y < boardY; ++y)
+    {
+      board[x][y] = { x: x, y: y, type: "none", state: "hidden", adjacentMineCount: 0 };
+    }
+  }
+}
+
+function initMines()
+{
+  for (let i = 0; i < mineCount; ++i)
+  {
+    let x = Math.floor(Math.random() * boardX);
+    let y = Math.floor(Math.random() * boardY);
+
+    if (board[x][y].type === "mine")
+    {
+      --i;
+    }
+    else
+    {
+      board[x][y].type = "mine"
+    }
+  }
+}
+
+function initMetaInfo()
+{
+  for (let x = 0; x < boardX; ++x)
+  {
+    for (let y = 0; y < boardY; ++y)
+    {
+      for (let i = x - 1; i <= x + 1; ++i)
+      {
+        for (let j = y - 1; j <= y + 1; ++j)
+        {
+          if (i >= 0 && i < boardX && j >= 0 && j < boardY)
+          {
+            if (board[i][j].type === "mine")
+            {
+              board[x][y].adjacentMineCount++;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function render()
+{
+  for (let x = 0; x < boardX; ++x)
+  {
+    for (let y = 0; y < boardY; ++y)
+    {
+      switch(board[x][y].state)
+      {
+        case "hidden":
+          context.fillStyle = cellFillColor;
+          context.strokeStyle = cellBorderColor;
+          break;
+        case "clear":
+          context.fillStyle = clearCellFillColor;
+          context.strokeStyle = clearCellBorderColor;
+          break;
+        case "warning":
+          context.fillStyle = warningCellFillColor;
+          context.strokeStyle = warningCellBorderColor;
+          break;
+      }
+
+      context.fillRect(cellSize * x, cellSize * y, cellSize, cellSize);
+      context.strokeRect(cellSize * x, cellSize * y, cellSize, cellSize);
+
+      if (board[x][y].state === "clear" && board[x][y].type === "none" && board[x][y].adjacentMineCount > 0)
+      {
+        context.strokeText(board[x][y].adjacentMineCount, cellSize * x + cellSize / 2, cellSize * y + cellSize / 2 + 6);
+      }
+    }
+  }
+}
+
+function addAdjacentCells(cell, cellsToCheck, checkedCells)
+{
+  let x = cell.x;
+  let y = cell.y;
+
+  for (let i = x - 1; i <= x + 1; ++i)
+  {
+    for (let j = y - 1; j <= y + 1; ++j)
+    {
+      if (i >= 0 && i < boardX && j >= 0 && j < boardY)
+      {
+        if (!checkedCells.includes(board[i][j]) && !cellsToCheck.includes(board[i][j]))
+        {
+          cellsToCheck.push(board[i][j]);
+        }
+      }
+    }
+  }
+}
+
+function clearEmptyCells(startingCell)
+{
+  let checkedCells = [];
+
+  let cellsToCheck = [];
+  cellsToCheck.push(startingCell);
+  
+  while (cellsToCheck.length > 0)
+  {
+    let cell = cellsToCheck.shift();
+    if (cell.type !== "mine" && cell.state === "hidden")
+    {
+      cell.state = "clear";
+      if (cell.adjacentMineCount === 0)
+      {
+        addAdjacentCells(cell, cellsToCheck, checkedCells);
+      }
+    }
+    checkedCells.push(cell);
+  }
+}
+
+function userWon()
+{
+  let expectedClearCellCount = boardX * boardY - mineCount;
+  let actualClearCellCount = 0;
+  for (let x = 0; x < boardX; ++x)
+  {
+    for (let y = 0; y < boardY; ++y)
+    {
+      if (board[x][y].type !== "mine" && board[x][y].state === "clear")
+      {
+        ++actualClearCellCount;
+      }
+    }
+  }
+  return actualClearCellCount === expectedClearCellCount;
+}
+
+function handleClick(e)
+{
+  let x = Math.floor(e.offsetX / cellSize);
+  let y = Math.floor(e.offsetY / cellSize);
+
+  if (e.button === 0) // LMB
+  {
+    if (board[x][y].type === "mine")
+    {
+      window.alert("You lose!");
+      init();
+    }
+    else if (board[x][y].state === "hidden")
+    {
+      clearEmptyCells(board[x][y]);
+      if (userWon())
+      {
+        window.alert("You win!");
+        init();
+      }
+    }
+  }
+  else if (e.button === 2) /// RMB
+  {
+    if (board[x][y].state === "hidden")
+    {
+      board[x][y].state = "warning";
+    }
+    else if (board[x][y].state === "warning")
+    {
+      board[x][y].state = "hidden";
+    }
+  }
+}
+
+addEventListener("contextmenu", function(e) { e.preventDefault(); return false; }, false);
+canvas.addEventListener("mousedown", handleClick, false);
+init();
+
+let intervalID = setInterval(render, tickCount / 60);
+
+</script>
